@@ -34,5 +34,8 @@ void ccl_einasto_norm_integral(int n_m, double *r_s, double *r_delta, double *al
 void ccl_hernquist_norm_integral(int n_m, double *r_s, double *r_delta,
 				 double *norm_out,int *status);
 
+void ccl_profile_projected(int nr, double *r_arr, double *p_arr, double r_min, double r_max,
+			   int nr_perp, double *r_perp_arr, double *p_out);
+
 CCL_END_DECLS
 #endif

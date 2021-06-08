@@ -45,5 +45,23 @@ void hernquist_norm(double *rs,int nrs,
 }
 %}
 
+%feature("pythonprepend") profint_projected %{
+    if numpy.shape(r) != numpy.shape(rs):
+        raise CCLError("Input shape for `rs` must match `r`!")
+    if numpy.shape(rs) != (nout,):
+        raise CCLError("Input shape for `rs` must match `(nout,)`!")
+%}
+%inline %{
+void profint_projected(double *r, int nr,
+		       double *rs, int nrs,
+		       double rmin, double rmax,
+		       int nout, double *output,
+		       int *status)
+{
+  ccl_profile_projected(nr, r, rs, rmin, rmax,
+			nout, r, output);
+}
+%}
+
 /* The directive gets carried between files, so we reset it at the end. */
 %feature("pythonprepend") %{ %}

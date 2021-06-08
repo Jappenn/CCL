@@ -46,7 +46,8 @@ class HaloProfile(object):
                                  'n_per_decade': 100,
                                  'extrapol': 'linx_liny',
                                  'plaw_fourier': -1.5,
-                                 'plaw_projected': -1.}
+                                 'plaw_projected': -1.,
+                                 'integ_bf': False}
 
     def update_precision_fftlog(self, **kwargs):
         """ Update any of the precision parameters used by
@@ -82,7 +83,7 @@ class HaloProfile(object):
                 Default value: 0.1.
             padding_hi_extra (float): same as `padding_lo_extra`
                 for the upper end of the range. Default value: 10.
-                large_padding_2D (bool): if set to `True`, the
+            large_padding_2D (bool): if set to `True`, the
                 intermediate Hankel transform in the calculation of
                 the 2D projected profile and cumulative mass
                 density will use `padding_lo_fftlog` and
@@ -118,6 +119,8 @@ class HaloProfile(object):
                 transform.  Some level of experimentation with this
                 parameter is recommended when implementing a new profile.
                 Default value: -1.
+            integ_bf (bool): set to True if you want to use brute-force
+                integration instead of FFTLog.
         """
         self.precision_fftlog.update(kwargs)
 
@@ -238,9 +241,13 @@ class HaloProfile(object):
         if getattr(self, '_projected', None):
             s_r_t = self._projected(cosmo, r_t, M, a, mass_def)
         else:
-            s_r_t = self._projected_fftlog_wrap(cosmo, r_t, M,
-                                                a, mass_def,
-                                                is_cumul2d=False)
+            if self.precision_fftlog['integ_bf']:
+                s_r_t = self._projected_bf_wrap(cosmo, r_t, M,
+                                                a, mass_def)
+            else:
+                s_r_t = self._projected_fftlog_wrap(cosmo, r_t, M,
+                                                    a, mass_def,
+                                                    is_cumul2d=False)
         return s_r_t
 
     def cumul2d(self, cosmo, r_t, M, a, mass_def=None):
@@ -331,6 +338,27 @@ class HaloProfile(object):
         if np.ndim(M) == 0:
             p_k_out = np.squeeze(p_k_out, axis=0)
         return p_k_out
+
+    def _projected_bf_wrap(self, cosmo, r_t, M, a, mass_def):
+        r_t_use = np.atleast_1d(r_t)
+        M_use = np.atleast_1d(M)
+        nr = len(r_t_use)
+        nM = len(M_use)
+        R_M = mass_def.get_radius(cosmo, M_use, a) / a
+
+        preal = self._real(cosmo, r_t_use, M_use, a, mass_def)
+        pproj = np.zeros_like(preal)
+        for iM, rM in enumerate(R_M):
+            status = 0
+            pproj[iM, :], status = lib.profint_projected(r_t_use,
+                                                         preal[iM],
+                                                         0, 3*rM,
+                                                         nr, status)
+        if np.ndim(r_t) == 0:
+            pproj = np.squeeze(pproj, axis=-1)
+        if np.ndim(M) == 0:
+            pproj = np.squeeze(pproj, axis=0)
+        return pproj
 
     def _projected_fftlog_wrap(self, cosmo, r_t, M, a, mass_def,
                                is_cumul2d=False):
